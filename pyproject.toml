@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dirtywave-m8-agent"
+version = "0.1.0"
+description = "Local transcript RAG assistant for Dirtywave M8 YouTube videos."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pypdf>=5.0.0",
+  "yt-dlp>=2025.1.15"
+]
+
+[project.scripts]
+m8agent = "m8agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["m8agent*"]
