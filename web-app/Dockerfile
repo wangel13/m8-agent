@@ -3,7 +3,7 @@ FROM node:24-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN npm install --global pnpm@11.2.2
 
 WORKDIR /app
 
