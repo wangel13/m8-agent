@@ -1,7 +1,9 @@
 import { resolve } from "node:path";
 
 function readEnv(name: string): string | undefined {
-	const value = process.env[name] ?? import.meta.env[name];
+	const viteEnv = (import.meta as unknown as { env?: Record<string, string> })
+		.env;
+	const value = process.env[name] ?? viteEnv?.[name];
 	return value && value.length > 0 ? value : undefined;
 }
 

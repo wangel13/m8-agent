@@ -192,6 +192,30 @@ Open `http://localhost:3000` and enter the same token. For a public read-only se
 
 See `web-app/README.md` for environment variables and MCP examples.
 
+### Deploying the Web App
+
+The web app can be deployed as a Docker app on Coolify from the `web-app/` directory. Use the Dockerfile build pack, mount persistent storage at `/data`, and put the prepared SQLite index at:
+
+```text
+/data/m8agent.sqlite
+```
+
+Set these environment variables:
+
+```bash
+M8_AUTH_TOKEN="replace-with-a-long-random-token"
+M8_DB_PATH="/data/m8agent.sqlite"
+```
+
+For a public read-only search site, set both variables below and make `VITE_PUBLIC_SEARCH` available during the Docker build:
+
+```bash
+M8_PUBLIC_SEARCH="true"
+VITE_PUBLIC_SEARCH="true"
+```
+
+`/mcp` always remains token-protected. See `web-app/README.md` for the full Coolify checklist.
+
 ## Using the Codex Skill
 
 This repository includes a repo-local Codex skill at:

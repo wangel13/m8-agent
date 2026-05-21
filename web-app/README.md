@@ -16,6 +16,8 @@ Create `.env` in `web-app/`:
 M8_AUTH_TOKEN="change-me"
 # Optional. Set to true to make /api/search and /api/stats public.
 M8_PUBLIC_SEARCH="false"
+# Optional. Build-time flag for the browser UI. Keep it aligned with M8_PUBLIC_SEARCH.
+VITE_PUBLIC_SEARCH="false"
 # Optional. Defaults to ../data/m8agent.sqlite when running from web-app/.
 M8_DB_PATH="../data/m8agent.sqlite"
 # Optional. Set only when a browser from another origin must call the API.
@@ -85,6 +87,56 @@ Available MCP tools:
 
 - `search_m8` with `{ query, limit?, sources?, lang? }`
 - `get_m8_stats`
+
+## Deploy With Coolify
+
+Use the Dockerfile build pack and set the application base directory to `web-app`.
+
+Required runtime variables:
+
+```bash
+M8_AUTH_TOKEN="replace-with-a-long-random-token"
+M8_DB_PATH="/data/m8agent.sqlite"
+```
+
+For a public read-only search site, also set:
+
+```bash
+M8_PUBLIC_SEARCH="true"
+VITE_PUBLIC_SEARCH="true"
+```
+
+`VITE_PUBLIC_SEARCH` is read by the browser bundle at build time. In Coolify, mark it as a build variable or rebuild the app after changing it. `/mcp` still requires `M8_AUTH_TOKEN` even when search is public.
+
+Optional runtime variable:
+
+```bash
+M8_CORS_ORIGIN="https://your-domain.example"
+```
+
+Add persistent storage in Coolify and mount it at `/data`, then upload or copy your prepared SQLite index to:
+
+```text
+/data/m8agent.sqlite
+```
+
+The container listens on port `3000` and starts with:
+
+```bash
+node .output/server/index.mjs
+```
+
+You can test the production image locally:
+
+```bash
+docker build --build-arg VITE_PUBLIC_SEARCH=true -t m8-agent-web .
+docker run --rm -p 3000:3000 \
+  -e M8_AUTH_TOKEN="change-me" \
+  -e M8_PUBLIC_SEARCH="true" \
+  -e M8_DB_PATH="/data/m8agent.sqlite" \
+  -v "$(pwd)/../data:/data:ro" \
+  m8-agent-web
+```
 
 ## Checks
 
