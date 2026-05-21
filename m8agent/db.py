@@ -408,11 +408,11 @@ def retrieve(
 
     doc_sources = {source for source in normalized_sources if source != "video"}
     if "all" in normalized_sources:
-        doc_sources = {"manual", "community_tips"}
+        doc_sources = {"manual", "community_tips", "companion"}
     if doc_sources:
-        doc_limit = (
-            limit if normalized_sources <= {"manual", "community_tips"} else max(limit, 12)
-        )
+        doc_limit = limit
+        if not normalized_sources <= {"manual", "community_tips", "companion"}:
+            doc_limit = max(limit, 12)
         for item in search_documents(conn, query, limit=doc_limit, sources=doc_sources):
             results.append(
                 RetrievalResult(
@@ -454,7 +454,7 @@ def diversify_retrieval_results(
     selected: list[RetrievalResult] = []
     selected_ids: set[int] = set()
 
-    for source_type in ("manual", "community_tips", "video"):
+    for source_type in ("manual", "community_tips", "companion", "video"):
         for index, result in enumerate(sorted_results):
             if result.source_type == source_type and index not in selected_ids:
                 selected.append(result)

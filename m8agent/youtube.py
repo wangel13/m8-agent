@@ -23,7 +23,7 @@ DEFAULT_CHANNEL_URL = "https://www.youtube.com/@Dirtywave/videos"
 
 def download_subtitles(
     *,
-    channel_url: str,
+    source_url: str,
     raw_dir: Path,
     languages: str,
     include_auto_subs: bool,
@@ -65,7 +65,7 @@ def download_subtitles(
         cmd.extend(["--js-runtimes", js_runtime])
     if download_archive:
         cmd.extend(["--download-archive", str(download_archive)])
-    cmd.append(channel_url)
+    cmd.append(source_url)
 
     result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
@@ -117,9 +117,9 @@ def index_raw_dir(
     return video_count, chunk_count
 
 
-def ingest_channel(
+def ingest_sources(
     *,
-    channel_url: str,
+    source_urls: list[str],
     raw_dir: Path,
     db_path: Path,
     languages: str,
@@ -142,17 +142,18 @@ def ingest_channel(
 
     try:
         if not no_download:
-            download_subtitles(
-                channel_url=channel_url,
-                raw_dir=raw_dir,
-                languages=languages,
-                include_auto_subs=include_auto_subs,
-                limit=limit,
-                cookies=cookies,
-                cookies_from_browser=cookies_from_browser,
-                js_runtime=js_runtime,
-                download_archive=archive_path,
-            )
+            for source_url in source_urls:
+                download_subtitles(
+                    source_url=source_url,
+                    raw_dir=raw_dir,
+                    languages=languages,
+                    include_auto_subs=include_auto_subs,
+                    limit=limit,
+                    cookies=cookies,
+                    cookies_from_browser=cookies_from_browser,
+                    js_runtime=js_runtime,
+                    download_archive=archive_path,
+                )
         video_ids = changed_video_ids(raw_dir, before) if new_only else None
         if new_only and not video_ids:
             return (0, 0)
@@ -160,6 +161,35 @@ def ingest_channel(
     finally:
         if temp_dir is not None:
             temp_dir.cleanup()
+
+
+def ingest_channel(
+    *,
+    channel_url: str,
+    raw_dir: Path,
+    db_path: Path,
+    languages: str,
+    include_auto_subs: bool,
+    limit: int | None,
+    cookies: Path | None,
+    cookies_from_browser: str | None,
+    js_runtime: str | None,
+    no_download: bool,
+    new_only: bool,
+) -> tuple[int, int]:
+    return ingest_sources(
+        source_urls=[channel_url],
+        raw_dir=raw_dir,
+        db_path=db_path,
+        languages=languages,
+        include_auto_subs=include_auto_subs,
+        limit=limit,
+        cookies=cookies,
+        cookies_from_browser=cookies_from_browser,
+        js_runtime=js_runtime,
+        no_download=no_download,
+        new_only=new_only,
+    )
 
 
 def write_download_archive(*, db_path: Path, archive_path: Path) -> None:

@@ -6,9 +6,15 @@ from pathlib import Path
 import sys
 
 from .db import connect, init_db, retrieve as retrieve_db, search as search_db
-from .docs import DEFAULT_MANUAL_URL, DEFAULT_TIPS_URL, ingest_docs
+from .docs import (
+    DEFAULT_COMPANION_URL,
+    DEFAULT_MANUAL_URL,
+    DEFAULT_TIPS_URL,
+    ingest_companion,
+    ingest_docs,
+)
 from .llm import answer_with_llm
-from .youtube import DEFAULT_CHANNEL_URL, ingest_channel
+from .youtube import DEFAULT_CHANNEL_URL, ingest_sources
 
 
 DEFAULT_RAW_DIR = Path("data/raw")
@@ -24,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_ingest(args)
     if args.command == "ingest-docs":
         return command_ingest_docs(args)
+    if args.command == "ingest-companion":
+        return command_ingest_companion(args)
     if args.command == "search":
         return command_search(args)
     if args.command == "retrieve":
@@ -41,7 +49,25 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     ingest = subparsers.add_parser("ingest", help="Download subtitles and build the local index.")
-    ingest.add_argument("--channel-url", default=DEFAULT_CHANNEL_URL)
+    ingest.add_argument(
+        "--channel-url",
+        action="append",
+        help=(
+            "YouTube channel URL to ingest. Deprecated alias for source input; "
+            "can be passed more than once."
+        ),
+    )
+    ingest.add_argument(
+        "--url",
+        action="append",
+        dest="source_urls",
+        help="YouTube channel, playlist, or video URL to ingest. Can be passed more than once.",
+    )
+    ingest.add_argument(
+        "--urls-file",
+        type=Path,
+        help="Text file with one YouTube channel, playlist, or video URL per line.",
+    )
     ingest.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
     ingest.add_argument("--langs", default="en.*,en,ru.*,ru")
     ingest.add_argument("--limit", type=int)
@@ -63,6 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_docs_parser.add_argument("--manual-url", default=DEFAULT_MANUAL_URL)
     ingest_docs_parser.add_argument("--tips-url", default=DEFAULT_TIPS_URL)
 
+    ingest_companion_parser = subparsers.add_parser(
+        "ingest-companion", help="Download and index The M8 Companion HTML tutorial."
+    )
+    ingest_companion_parser.add_argument("--raw-docs-dir", type=Path, default=DEFAULT_RAW_DOCS_DIR)
+    ingest_companion_parser.add_argument("--url", default=DEFAULT_COMPANION_URL)
+
     search = subparsers.add_parser("search", help="Search transcript chunks.")
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=8)
@@ -75,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     retrieve.add_argument(
         "--sources",
         default="all",
-        help="Comma-separated: all,video,manual,community_tips",
+        help="Comma-separated: all,video,manual,community_tips,companion",
     )
     retrieve.add_argument("--format", choices=["text", "json"], default="text")
 
@@ -88,8 +120,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def command_ingest(args: argparse.Namespace) -> int:
-    videos, chunks = ingest_channel(
-        channel_url=args.channel_url,
+    source_urls = collect_ingest_urls(
+        channel_urls=args.channel_url,
+        source_urls=args.source_urls,
+        urls_file=args.urls_file,
+    )
+    videos, chunks = ingest_sources(
+        source_urls=source_urls,
         raw_dir=args.raw_dir,
         db_path=args.db,
         languages=args.langs,
@@ -105,12 +142,62 @@ def command_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+def collect_ingest_urls(
+    *,
+    channel_urls: list[str] | None,
+    source_urls: list[str] | None,
+    urls_file: Path | None,
+) -> list[str]:
+    urls: list[str] = []
+    urls.extend(channel_urls or [])
+    urls.extend(source_urls or [])
+    if urls_file:
+        urls.extend(read_urls_file(urls_file))
+    if not urls:
+        urls.append(DEFAULT_CHANNEL_URL)
+    return dedupe_urls(urls)
+
+
+def read_urls_file(path: Path) -> list[str]:
+    urls: list[str] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        value = line.strip()
+        if not value or value.startswith("#"):
+            continue
+        if not value.startswith(("http://", "https://")):
+            raise SystemExit(f"Invalid URL in {path}:{line_number}: {value}")
+        urls.append(value)
+    return urls
+
+
+def dedupe_urls(urls: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for url in urls:
+        normalized = url.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(normalized)
+    return deduped
+
+
 def command_ingest_docs(args: argparse.Namespace) -> int:
     stats = ingest_docs(
         db_path=args.db,
         raw_docs_dir=args.raw_docs_dir,
         manual_url=args.manual_url,
         tips_url=args.tips_url,
+    )
+    print(f"Indexed {stats.documents} documents and {stats.chunks} chunks into {args.db}")
+    return 0
+
+
+def command_ingest_companion(args: argparse.Namespace) -> int:
+    stats = ingest_companion(
+        db_path=args.db,
+        raw_docs_dir=args.raw_docs_dir,
+        companion_url=args.url,
     )
     print(f"Indexed {stats.documents} documents and {stats.chunks} chunks into {args.db}")
     return 0
@@ -166,7 +253,7 @@ def command_ask(args: argparse.Namespace) -> int:
 
 
 def parse_sources(value: str) -> set[str]:
-    allowed = {"all", "video", "manual", "community_tips"}
+    allowed = {"all", "video", "manual", "community_tips", "companion"}
     sources = {item.strip() for item in value.split(",") if item.strip()}
     unknown = sources - allowed
     if unknown:

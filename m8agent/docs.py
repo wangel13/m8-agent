@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 import re
+from urllib import parse
 from urllib import request
 
 from pypdf import PdfReader
@@ -19,6 +21,7 @@ DEFAULT_TIPS_URL = (
     "https://docs.google.com/document/d/"
     "1IpUeR2s9TpkwH9w2lfqfLLkUxLvXcQWipDR046DzOYk/export?format=txt"
 )
+DEFAULT_COMPANION_URL = "https://cs.uwaterloo.ca/~plragde/flaneries/TM8C/"
 
 
 @dataclass(frozen=True)
@@ -87,10 +90,69 @@ def ingest_docs(
     return IngestStats(documents=2, chunks=len(manual_chunks) + len(tips_chunks))
 
 
+def ingest_companion(
+    *,
+    db_path: Path,
+    raw_docs_dir: Path,
+    companion_url: str,
+) -> IngestStats:
+    raw_docs_dir.mkdir(parents=True, exist_ok=True)
+    companion_dir = raw_docs_dir / "the_m8_companion"
+    companion_dir.mkdir(parents=True, exist_ok=True)
+
+    index_path = companion_dir / "index.html"
+    download_file(companion_url, index_path)
+    chapter_urls = extract_companion_chapter_urls(
+        index_path.read_text(encoding="utf-8", errors="replace"),
+        companion_url,
+    )
+
+    pages: list[tuple[Path, str]] = []
+    for url in chapter_urls:
+        filename = Path(parse.urlparse(url).path).name or "index.html"
+        path = companion_dir / filename
+        download_file(url, path)
+        pages.append((path, url))
+
+    chunks: list[tuple[str, str, str]] = []
+    for path, url in pages:
+        chunks.extend(parse_companion_html(path, url))
+
+    conn = connect(db_path)
+    init_db(conn)
+    companion_doc = Document(
+        document_id="the_m8_companion",
+        title="The M8 Companion",
+        source_type="companion",
+        authority="community",
+        url=companion_url,
+        version=None,
+    )
+    upsert_document(conn, companion_doc)
+    replace_doc_chunks(
+        conn,
+        document_id=companion_doc.document_id,
+        source_type=companion_doc.source_type,
+        authority=companion_doc.authority,
+        source_file=companion_dir,
+        chunks=chunks,
+    )
+    conn.commit()
+    conn.close()
+
+    return IngestStats(documents=1, chunks=len(chunks))
+
+
 def download_file(url: str, path: Path) -> None:
     req = request.Request(url, headers={"User-Agent": "m8agent/0.1"})
     with request.urlopen(req, timeout=90) as response:
         path.write_bytes(response.read())
+
+
+def extract_companion_chapter_urls(html: str, source_url: str) -> list[str]:
+    parser = CompanionLinkParser(source_url)
+    parser.feed(html)
+    return parser.urls
 
 
 def parse_manual_pdf(path: Path, source_url: str) -> list[tuple[str, str, str]]:
@@ -135,6 +197,12 @@ def parse_tips_text(path: Path, source_url: str) -> list[tuple[str, str, str]]:
 
     flush()
     return chunks
+
+
+def parse_companion_html(path: Path, source_url: str) -> list[tuple[str, str, str]]:
+    parser = CompanionContentParser(source_url)
+    parser.feed(path.read_text(encoding="utf-8", errors="replace"))
+    return parser.chunks()
 
 
 def is_tips_heading(line: str) -> bool:
@@ -202,3 +270,133 @@ def split_long_text(text: str, *, max_chars: int) -> list[str]:
     if current:
         chunks.append(" ".join(current))
     return chunks
+
+
+class CompanionLinkParser(HTMLParser):
+    def __init__(self, base_url: str):
+        super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        self.urls: list[str] = []
+        self._seen: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "a":
+            return
+        href = dict(attrs).get("href")
+        if not href or href.startswith(("#", "javascript:")):
+            return
+        url = parse.urljoin(self.base_url, href.split("#", 1)[0])
+        parsed = parse.urlparse(url)
+        if not parsed.path.endswith(".html"):
+            return
+        if not url.startswith(self.base_url) or url in self._seen:
+            return
+        self._seen.add(url)
+        self.urls.append(url)
+
+
+class CompanionContentParser(HTMLParser):
+    BLOCK_TAGS = {"p", "li", "pre"}
+    VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta"}
+
+    def __init__(self, source_url: str):
+        super().__init__(convert_charrefs=True)
+        self.source_url = source_url
+        self.in_main = False
+        self.main_depth = 0
+        self.skip_depth = 0
+        self.current_heading = "Introduction"
+        self.current_anchor: str | None = None
+        self.pending_anchor: str | None = None
+        self.active_block: str | None = None
+        self.block_parts: list[str] = []
+        self.raw_chunks: list[tuple[str, str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr_map = dict(attrs)
+        class_tokens = set((attr_map.get("class") or "").split())
+
+        if self.in_main and tag not in self.VOID_TAGS:
+            self.main_depth += 1
+
+        if tag == "div" and "main" in class_tokens and not self.in_main:
+            self.in_main = True
+            self.main_depth = 1
+            return
+
+        if not self.in_main:
+            return
+
+        if tag in {"script", "style"}:
+            self.skip_depth += 1
+            return
+
+        if tag == "a" and attr_map.get("name"):
+            self.pending_anchor = attr_map["name"]
+
+        if re.fullmatch(r"h[1-6]", tag):
+            self._start_block("heading")
+        elif tag in self.BLOCK_TAGS:
+            self._start_block(tag)
+        elif tag == "br" and self.active_block:
+            self.block_parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self.in_main:
+            return
+
+        if tag in {"script", "style"} and self.skip_depth:
+            self.skip_depth -= 1
+
+        if self.active_block == "heading" and re.fullmatch(r"h[1-6]", tag):
+            heading = (
+                clean_document_text(" ".join(self.block_parts))
+                .replace("\U0001f517", "")
+                .strip()
+            )
+            self.block_parts = []
+            self.active_block = None
+            if heading:
+                self.current_heading = heading
+                self.current_anchor = self.pending_anchor
+            self.pending_anchor = None
+        elif self.active_block == tag and tag in self.BLOCK_TAGS:
+            self._flush_text_block()
+
+        if tag not in self.VOID_TAGS:
+            self.main_depth -= 1
+            if self.main_depth <= 0:
+                self.in_main = False
+
+    def handle_data(self, data: str) -> None:
+        if not self.in_main or self.skip_depth or not self.active_block:
+            return
+        value = data.strip()
+        if value:
+            self.block_parts.append(value)
+
+    def chunks(self) -> list[tuple[str, str, str]]:
+        chunks: list[tuple[str, str, str]] = []
+        for location, citation_url, text in self.raw_chunks:
+            for part in chunk_text(text):
+                chunks.append((location, citation_url, part))
+        return chunks
+
+    def _start_block(self, tag: str) -> None:
+        if self.active_block and self.active_block != "heading":
+            self._flush_text_block()
+        self.active_block = tag
+        self.block_parts = []
+
+    def _flush_text_block(self) -> None:
+        text = clean_document_text(" ".join(self.block_parts))
+        self.block_parts = []
+        self.active_block = None
+        if not text:
+            return
+        self.raw_chunks.append((self.current_heading, self._citation_url(), text))
+
+    def _citation_url(self) -> str:
+        if not self.current_anchor:
+            return self.source_url
+        return f"{self.source_url}#{parse.quote(self.current_anchor, safe='')}"
