@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="M8 Search">
+	<defs>
+		<linearGradient id="bg" x1="94" x2="1102" y1="38" y2="594" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#101828" />
+			<stop offset="0.56" stop-color="#111827" />
+			<stop offset="1" stop-color="#083344" />
+		</linearGradient>
+	</defs>
+	<rect width="1200" height="630" fill="url(#bg)" />
+	<circle cx="970" cy="132" r="58" fill="#f59e0b" />
+	<circle cx="1028" cy="132" r="58" fill="#ffffff" />
+	<text
+		x="96"
+		y="275"
+		fill="#ffffff"
+		font-family="Inter"
+		font-size="172"
+		font-style="normal"
+		font-weight="900"
+		letter-spacing="0"
+	>
+		M8 Search
+	</text>
+	<text
+		x="104"
+		y="362"
+		fill="#dffbff"
+		font-family="Inter"
+		font-size="42"
+		font-style="normal"
+		font-weight="700"
+		letter-spacing="0"
+	>
+		<tspan x="104" dy="0">Search videos, manuals, tips, and companion notes</tspan>
+		<tspan x="104" dy="58">for Dirtywave M8 from one focused index.</tspan>
+	</text>
+	<rect x="104" y="490" width="470" height="28" rx="14" fill="#2dd4bf" opacity="0.95" />
+	<text
+		x="104"
+		y="570"
+		fill="#f8fafc"
+		font-family="Inter"
+		font-size="34"
+		font-style="normal"
+		font-weight="700"
+		letter-spacing="0"
+	>
+		MCP-ready focused search index
+	</text>
+</svg>

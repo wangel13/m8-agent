@@ -1,6 +1,7 @@
 {
-  "short_name": "M8 search",
-  "name": "M8 docs and videos search, mcp",
+  "short_name": "M8 Search",
+  "name": "M8 Search",
+  "description": "Search M8 Tracker videos, the official manual, Open M8 Tips, and The M8 Companion from one focused MCP-ready index.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +21,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#101828",
   "background_color": "#ffffff"
 }

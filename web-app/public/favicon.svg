@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="m8 search">
+	<defs>
+		<linearGradient id="bg" x1="68" x2="444" y1="54" y2="458" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#101828" />
+			<stop offset="0.58" stop-color="#111827" />
+			<stop offset="1" stop-color="#083344" />
+		</linearGradient>
+	</defs>
+	<rect width="512" height="512" rx="104" fill="url(#bg)" />
+	<circle cx="368" cy="136" r="34" fill="#f59e0b" />
+	<rect x="116" y="360" width="280" height="26" rx="13" fill="#2dd4bf" opacity="0.92" />
+	<text
+		x="256"
+		y="242"
+		fill="#ffffff"
+		font-family="Inter"
+		font-size="184"
+		font-style="normal"
+		font-weight="900"
+		letter-spacing="0"
+		text-anchor="middle"
+	>
+		m8
+	</text>
+	<text
+		x="256"
+		y="334"
+		fill="#dffbff"
+		font-family="Inter"
+		font-size="84"
+		font-style="normal"
+		font-weight="800"
+		letter-spacing="0"
+		text-anchor="middle"
+	>
+		search
+	</text>
+</svg>
