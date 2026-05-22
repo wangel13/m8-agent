@@ -17,7 +17,7 @@ export function createM8McpServer(): McpServer {
 		{
 			title: "Search Dirtywave M8 references",
 			description:
-				"Search the local Dirtywave M8 index across videos, official manual, Open M8 Tips, and The M8 Companion.",
+				"Search the local Dirtywave M8 index across videos, official manual, Open M8 Tips, and The M8 Companion. Use this before answering factual Dirtywave M8 questions. Answer in the user's language, use only retrieved results for factual claims, and always include a final Sources section listing compact source labels with each result's citation_url. If official manual and community sources conflict, describe both explicitly. If results are weak or insufficient, say what is missing instead of guessing.",
 			inputSchema: searchRequestSchema,
 		},
 		(input) => {

@@ -88,6 +88,8 @@ Available MCP tools:
 - `search_m8` with `{ query, limit?, sources?, lang? }`
 - `get_m8_stats`
 
+`search_m8` instructs MCP clients to answer in the user's language, use retrieved results for factual Dirtywave M8 claims, and include a final `Sources` section with compact labels and each result's `citation_url`.
+
 ## Deploy With Coolify
 
 Use the Dockerfile build pack and set the application base directory to `web-app`.
