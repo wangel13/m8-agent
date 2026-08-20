@@ -3,6 +3,7 @@ import type {
 	RetrievalResult,
 	SearchRequest,
 	StatsResult,
+	YoutubeChannelsResult,
 } from "#/lib/m8-schemas";
 import type { M8Database } from "#/server/db";
 import { withM8Database } from "#/server/db";
@@ -10,6 +11,7 @@ import { withM8Database } from "#/server/db";
 type VideoRow = {
 	title: string;
 	url: string;
+	channel: string | null;
 	lang: string;
 	start_ms: number;
 	end_ms: number;
@@ -29,11 +31,25 @@ type DocRow = {
 
 const DOC_SOURCES = ["manual", "community_tips", "companion"] as const;
 
+export class UnknownYoutubeChannelError extends Error {
+	constructor(channel: string) {
+		super(
+			`Unknown YouTube channel "${channel}". Call list_youtube_channels to get the available channel names.`,
+		);
+		this.name = "UnknownYoutubeChannelError";
+	}
+}
+
 export function retrieveM8(
 	db: M8Database,
 	request: SearchRequest,
 ): RetrievalResult[] {
-	const normalizedSources = normalizeSources(request.sources);
+	const channel = request.channel
+		? resolveYoutubeChannel(db, request.channel)
+		: undefined;
+	const normalizedSources = normalizeSources(
+		request.sources ?? (channel ? ["video"] : ["all"]),
+	);
 	const results: RetrievalResult[] = [];
 
 	if (normalizedSources.has("all") || normalizedSources.has("video")) {
@@ -47,10 +63,12 @@ export function retrieveM8(
 			request.query,
 			videoLimit,
 			request.lang,
+			channel,
 		)) {
 			results.push({
 				source_type: "video",
 				authority: "community",
+				channel: row.channel ?? undefined,
 				title: row.title,
 				location: formatTimestamp(row.start_ms),
 				citation_url: videoCitationUrl(row.url, row.start_ms),
@@ -121,17 +139,47 @@ export function getM8StatsFromDefaultDb(): StatsResult {
 	return withM8Database((db) => getM8Stats(db));
 }
 
+export function getYoutubeChannels(db: M8Database): YoutubeChannelsResult {
+	return {
+		channels: db
+			.prepare(
+				`
+        SELECT
+          videos.channel AS name,
+          COUNT(DISTINCT videos.video_id) AS videos
+        FROM videos
+        JOIN chunks ON chunks.video_id = videos.video_id
+        WHERE videos.channel IS NOT NULL AND TRIM(videos.channel) <> ''
+        GROUP BY videos.channel COLLATE NOCASE
+        ORDER BY videos.channel COLLATE NOCASE, videos.channel
+        `,
+			)
+			.all() as YoutubeChannelsResult["channels"],
+	};
+}
+
+export function getYoutubeChannelsFromDefaultDb(): YoutubeChannelsResult {
+	return withM8Database((db) => getYoutubeChannels(db));
+}
+
 function searchVideos(
 	db: M8Database,
 	query: string,
 	limit: number,
 	lang?: string,
+	channel?: string,
 ): VideoRow[] {
 	const ftsQuery = makeFtsQuery(query);
 	const langClause = lang ? "AND chunks.lang = ?" : "";
-	const params: Array<string | number> = lang
-		? [ftsQuery, lang, limit]
-		: [ftsQuery, limit];
+	const channelClause = channel ? "AND videos.channel = ? COLLATE NOCASE" : "";
+	const params: Array<string | number> = [ftsQuery];
+	if (lang) {
+		params.push(lang);
+	}
+	if (channel) {
+		params.push(channel);
+	}
+	params.push(limit);
 
 	try {
 		return db
@@ -140,6 +188,7 @@ function searchVideos(
         SELECT
           videos.title,
           videos.url,
+          videos.channel,
           chunks.lang,
           chunks.start_ms,
           chunks.end_ms,
@@ -148,14 +197,14 @@ function searchVideos(
         FROM chunks_fts
         JOIN chunks ON chunks.id = chunks_fts.rowid
         JOIN videos ON videos.video_id = chunks.video_id
-        WHERE chunks_fts MATCH ? ${langClause}
+        WHERE chunks_fts MATCH ? ${langClause} ${channelClause}
         ORDER BY score
         LIMIT ?
         `,
 			)
 			.all(...params) as VideoRow[];
 	} catch {
-		return fallbackVideoSearch(db, query, limit, lang);
+		return fallbackVideoSearch(db, query, limit, lang, channel);
 	}
 }
 
@@ -203,6 +252,7 @@ function fallbackVideoSearch(
 	query: string,
 	limit: number,
 	lang?: string,
+	channel?: string,
 ): VideoRow[] {
 	const terms = likeTerms(query);
 	if (terms.length === 0) {
@@ -211,9 +261,13 @@ function fallbackVideoSearch(
 
 	const where = terms.map(() => "chunks.text LIKE ?").join(" OR ");
 	const langClause = lang ? "AND chunks.lang = ?" : "";
+	const channelClause = channel ? "AND videos.channel = ? COLLATE NOCASE" : "";
 	const params: Array<string | number> = terms.map((term) => `%${term}%`);
 	if (lang) {
 		params.push(lang);
+	}
+	if (channel) {
+		params.push(channel);
 	}
 	params.push(limit);
 
@@ -223,6 +277,7 @@ function fallbackVideoSearch(
       SELECT
         videos.title,
         videos.url,
+        videos.channel,
         chunks.lang,
         chunks.start_ms,
         chunks.end_ms,
@@ -230,11 +285,32 @@ function fallbackVideoSearch(
         0.0 AS score
       FROM chunks
       JOIN videos ON videos.video_id = chunks.video_id
-      WHERE (${where}) ${langClause}
+      WHERE (${where}) ${langClause} ${channelClause}
       LIMIT ?
       `,
 		)
 		.all(...params) as VideoRow[];
+}
+
+function resolveYoutubeChannel(db: M8Database, channel: string): string {
+	const normalizedChannel = channel.trim();
+	const row = db
+		.prepare(
+			`
+      SELECT videos.channel
+      FROM videos
+      JOIN chunks ON chunks.video_id = videos.video_id
+      WHERE videos.channel = ? COLLATE NOCASE
+      ORDER BY videos.channel COLLATE NOCASE, videos.channel
+      LIMIT 1
+      `,
+		)
+		.get(normalizedChannel) as { channel: string } | undefined;
+
+	if (!row) {
+		throw new UnknownYoutubeChannelError(normalizedChannel);
+	}
+	return row.channel;
 }
 
 function fallbackDocumentSearch(

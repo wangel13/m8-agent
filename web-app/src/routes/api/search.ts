@@ -7,7 +7,10 @@ import {
 	preflightResponse,
 	requireSearchAccess,
 } from "#/server/http";
-import { retrieveM8FromDefaultDb } from "#/server/retrieval";
+import {
+	retrieveM8FromDefaultDb,
+	UnknownYoutubeChannelError,
+} from "#/server/retrieval";
 
 export const Route = createFileRoute("/api/search")({
 	server: {
@@ -25,9 +28,15 @@ export const Route = createFileRoute("/api/search")({
 				} catch (error) {
 					if (error instanceof ZodError) {
 						return jsonResponse(
-							{ error: "Invalid search request", issues: error.issues },
+							{
+								error: error.issues[0]?.message ?? "Invalid search request",
+								issues: error.issues,
+							},
 							{ status: 400 },
 						);
+					}
+					if (error instanceof UnknownYoutubeChannelError) {
+						return jsonResponse({ error: error.message }, { status: 400 });
 					}
 					throw error;
 				}

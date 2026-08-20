@@ -13,6 +13,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiStatsRouteImport } from './routes/api/stats'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiChannelsRouteImport } from './routes/api/channels'
 
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
@@ -34,16 +35,23 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChannelsRoute = ApiChannelsRouteImport.update({
+  id: '/api/channels',
+  path: '/api/channels',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/api/channels': typeof ApiChannelsRoute
   '/api/search': typeof ApiSearchRoute
   '/api/stats': typeof ApiStatsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/api/channels': typeof ApiChannelsRoute
   '/api/search': typeof ApiSearchRoute
   '/api/stats': typeof ApiStatsRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/api/channels': typeof ApiChannelsRoute
   '/api/search': typeof ApiSearchRoute
   '/api/stats': typeof ApiStatsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/mcp' | '/api/search' | '/api/stats'
+  fullPaths: '/' | '/mcp' | '/api/channels' | '/api/search' | '/api/stats'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/mcp' | '/api/search' | '/api/stats'
-  id: '__root__' | '/' | '/mcp' | '/api/search' | '/api/stats'
+  to: '/' | '/mcp' | '/api/channels' | '/api/search' | '/api/stats'
+  id: '__root__' | '/' | '/mcp' | '/api/channels' | '/api/search' | '/api/stats'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  ApiChannelsRoute: typeof ApiChannelsRoute
   ApiSearchRoute: typeof ApiSearchRoute
   ApiStatsRoute: typeof ApiStatsRoute
 }
@@ -99,12 +109,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/channels': {
+      id: '/api/channels'
+      path: '/api/channels'
+      fullPath: '/api/channels'
+      preLoaderRoute: typeof ApiChannelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  ApiChannelsRoute: ApiChannelsRoute,
   ApiSearchRoute: ApiSearchRoute,
   ApiStatsRoute: ApiStatsRoute,
 }

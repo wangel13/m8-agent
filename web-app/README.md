@@ -14,7 +14,7 @@ Create `.env` in `web-app/`:
 
 ```bash
 M8_AUTH_TOKEN="change-me"
-# Optional. Set to true to make /api/search and /api/stats public.
+# Optional. Set to true to make /api/search, /api/stats, and /api/channels public.
 M8_PUBLIC_SEARCH="false"
 # Optional. Build-time flag for the browser UI. Keep it aligned with M8_PUBLIC_SEARCH.
 VITE_PUBLIC_SEARCH="false"
@@ -47,7 +47,7 @@ By default, search and stats endpoints require:
 Authorization: Bearer <M8_AUTH_TOKEN>
 ```
 
-When `M8_PUBLIC_SEARCH=true`, `/api/search` and `/api/stats` are public and should be protected by your hosting layer with rate limiting. The stats response never includes the local SQLite path.
+When `M8_PUBLIC_SEARCH=true`, `/api/search`, `/api/stats`, and `/api/channels` are public and should be protected by your hosting layer with rate limiting. The stats response never includes the local SQLite path.
 
 Search:
 
@@ -57,6 +57,26 @@ curl -X POST http://localhost:3000/api/search \
   -H "Content-Type: application/json" \
   -d '{"query":"USB audio options","sources":["all"],"limit":8}'
 ```
+
+Search one YouTube channel by its stored display name. Channel matching is exact
+and case-insensitive. Omit `sources` or set it to exactly `["video"]`:
+
+```bash
+curl -X POST http://localhost:3000/api/search \
+  -H "Authorization: Bearer $M8_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"table modulation","channel":"NearTao","limit":8}'
+```
+
+List searchable YouTube channels and their searchable video counts:
+
+```bash
+curl http://localhost:3000/api/channels \
+  -H "Authorization: Bearer $M8_AUTH_TOKEN"
+```
+
+Only channels with transcript chunks are returned. A channel's `videos` count
+includes only videos with at least one searchable transcript chunk.
 
 Stats:
 
@@ -85,10 +105,14 @@ pnpm mcp
 
 Available MCP tools:
 
-- `search_m8` with `{ query, limit?, sources?, lang? }`
+- `search_m8` with `{ query, limit?, sources?, lang?, channel? }`
+- `list_youtube_channels`
 - `get_m8_stats`
 
-`search_m8` instructs MCP clients to answer in the user's language, use retrieved results for factual Dirtywave M8 claims, and include a final `Sources` section with compact labels and each result's `citation_url`.
+Call `list_youtube_channels` to discover valid names before using the optional
+`channel` filter. `search_m8` instructs MCP clients to answer in the user's
+language, use retrieved results for factual Dirtywave M8 claims, and include a
+final `Sources` section with compact labels and each result's `citation_url`.
 
 ## Deploy With Coolify
 
