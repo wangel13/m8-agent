@@ -149,6 +149,16 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 					]
 				: []),
 		],
+		scripts:
+			env.VITE_UMAMI_SCRIPT_URL && env.VITE_UMAMI_WEBSITE_ID
+				? [
+						{
+							defer: true,
+							src: env.VITE_UMAMI_SCRIPT_URL,
+							"data-website-id": env.VITE_UMAMI_WEBSITE_ID,
+						},
+					]
+				: [],
 	}),
 	shellComponent: RootDocument,
 });

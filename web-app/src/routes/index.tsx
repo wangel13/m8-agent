@@ -47,6 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "#/components/ui/select";
+import { trackUmamiEvent } from "#/lib/analytics";
 import type {
   M8Source,
   RetrievalResult,
@@ -120,6 +121,13 @@ function Home() {
   const searchForm = useForm({
     defaultValues: defaultSearchValues,
     onSubmit: ({ value }) => {
+      const channel = channelFromSelection(value.source);
+      trackUmamiEvent("search", {
+        source: channel ? "video" : value.source,
+        lang: value.lang,
+        limit: Number(value.limit),
+        ...(channel ? { channel } : {}),
+      });
       searchMutation.mutate(value);
     },
   });
@@ -188,7 +196,12 @@ function Home() {
           <CardContent>
             <Collapsible
               open={mcpConfigOpen}
-              onOpenChange={setMcpConfigOpen}
+              onOpenChange={(open) => {
+                setMcpConfigOpen(open);
+                if (open) {
+                  trackUmamiEvent("show-config");
+                }
+              }}
               className="flex flex-col gap-3"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

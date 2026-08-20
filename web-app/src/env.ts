@@ -20,7 +20,26 @@ export const env = createEnv({
 		VITE_APP_TITLE: z.string().min(1).optional(),
 		VITE_PUBLIC_SEARCH: z.enum(["true", "false"]).optional(),
 		VITE_SITE_URL: z.string().url().optional(),
+		VITE_UMAMI_SCRIPT_URL: z.string().url().optional(),
+		VITE_UMAMI_WEBSITE_ID: z.string().uuid().optional(),
 	},
+
+	createFinalSchema: (shape) =>
+		z.object(shape).superRefine((values, context) => {
+			const hasScriptUrl = Boolean(values.VITE_UMAMI_SCRIPT_URL);
+			const hasWebsiteId = Boolean(values.VITE_UMAMI_WEBSITE_ID);
+
+			if (hasScriptUrl !== hasWebsiteId) {
+				context.addIssue({
+					code: "custom",
+					message:
+						"VITE_UMAMI_SCRIPT_URL and VITE_UMAMI_WEBSITE_ID must be set together",
+					path: [
+						hasScriptUrl ? "VITE_UMAMI_WEBSITE_ID" : "VITE_UMAMI_SCRIPT_URL",
+					],
+				});
+			}
+		}),
 
 	/**
 	 * What object holds the environment variables at runtime. This is usually

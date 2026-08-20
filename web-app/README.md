@@ -18,6 +18,9 @@ M8_AUTH_TOKEN="change-me"
 M8_PUBLIC_SEARCH="false"
 # Optional. Build-time flag for the browser UI. Keep it aligned with M8_PUBLIC_SEARCH.
 VITE_PUBLIC_SEARCH="false"
+# Optional. Set both build-time variables together to enable Umami analytics.
+VITE_UMAMI_SCRIPT_URL="https://umami.taras.one/script.js"
+VITE_UMAMI_WEBSITE_ID="e8d2ab2f-b05f-48a3-a602-df1f3181df00"
 # Optional. Defaults to ../data/m8agent.sqlite when running from web-app/.
 M8_DB_PATH="../data/m8agent.sqlite"
 # Optional. Set only when a browser from another origin must call the API.
@@ -130,9 +133,14 @@ For a public read-only search site, also set:
 ```bash
 M8_PUBLIC_SEARCH="true"
 VITE_PUBLIC_SEARCH="true"
+VITE_UMAMI_SCRIPT_URL="https://umami.site/script.js"
+VITE_UMAMI_WEBSITE_ID="e8d2ab4f-1234-1234-1233-df1f5181df00"
 ```
 
-`VITE_PUBLIC_SEARCH` is read by the browser bundle at build time. In Coolify, mark it as a build variable or rebuild the app after changing it. `/mcp` still requires `M8_AUTH_TOKEN` even when search is public.
+The `VITE_` variables are read by the browser bundle at build time. In Coolify,
+mark them as build variables and rebuild the app after changing them. Set both
+Umami variables to enable analytics; leave both unset to disable it. `/mcp`
+still requires `M8_AUTH_TOKEN` even when search is public.
 
 Optional runtime variable:
 
@@ -155,7 +163,11 @@ node .output/server/index.mjs
 You can test the production image locally:
 
 ```bash
-docker build --build-arg VITE_PUBLIC_SEARCH=true -t m8-agent-web .
+docker build \
+  --build-arg VITE_PUBLIC_SEARCH=true \
+  --build-arg VITE_UMAMI_SCRIPT_URL=https://umami.taras.one/script.js \
+  --build-arg VITE_UMAMI_WEBSITE_ID=e8d2ab2f-b05f-48a3-a602-df1f3181df00 \
+  -t m8-agent-web .
 docker run --rm -p 3000:3000 \
   -e M8_AUTH_TOKEN="change-me" \
   -e M8_PUBLIC_SEARCH="true" \
